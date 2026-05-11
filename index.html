@@ -287,17 +287,21 @@ function drawArcLine(ctx, text, cx, cy, r, inkColor, fs) {
     span = ctx.measureText(text).width / r;
   }
 
+  // Differential prefix widths preserve inter-character kerning
   let a = -Math.PI / 2 - span / 2;
-  for (const ch of text) {
-    const cw = ctx.measureText(ch).width;
-    const ca = cw / r;
+  let prevW = 0;
+  for (let i = 0; i < text.length; i++) {
+    const nextW = ctx.measureText(text.slice(0, i + 1)).width;
+    const cw    = nextW - prevW;
+    const ca    = cw / r;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(a + ca / 2);
     ctx.translate(0, -r);
-    ctx.fillText(ch, 0, 0);
+    ctx.fillText(text[i], 0, 0);
     ctx.restore();
-    a += ca;
+    a    += ca;
+    prevW = nextW;
   }
   ctx.restore();
 }
