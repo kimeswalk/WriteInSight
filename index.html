@@ -272,36 +272,53 @@ function centerText(ctx, text, cx, cy, r, c, fs) {
 }
 
 // Draw one line of text centered along an arc at radius r.
+// Each word is rendered as a unit so the browser handles its own spacing.
 function drawArcLine(ctx, text, cx, cy, r, inkColor, fs) {
   if (!text || r <= 0) return;
   ctx.save();
   ctx.font         = `${fs}px Georgia, serif`;
   ctx.fillStyle    = inkColor;
   ctx.textBaseline = 'middle';
+  ctx.textAlign    = 'center';
 
   const MAX_SPAN = (Math.PI * 5) / 3; // ~300°
-  let span = ctx.measureText(text).width / r;
+  let totalW = ctx.measureText(text).width;
+  let span   = totalW / r;
   if (span > MAX_SPAN) {
-    fs = Math.max(8, Math.floor(fs * MAX_SPAN / span));
+    fs     = Math.max(8, Math.floor(fs * MAX_SPAN / span));
     ctx.font = `${fs}px Georgia, serif`;
-    span = ctx.measureText(text).width / r;
+    totalW = ctx.measureText(text).width;
+    span   = totalW / r;
   }
 
-  // Differential prefix widths preserve inter-character kerning
+  // Walk word-by-word using prefix widths; draw each word as a whole string
+  // so the browser applies its own kerning and spacing within each word.
   let a = -Math.PI / 2 - span / 2;
-  let prevW = 0;
-  for (let i = 0; i < text.length; i++) {
-    const nextW = ctx.measureText(text.slice(0, i + 1)).width;
-    const cw    = nextW - prevW;
-    const ca    = cw / r;
+  let pos = 0;
+  while (pos < text.length) {
+    const spaceAt = text.indexOf(' ', pos);
+    const wordEnd = spaceAt === -1 ? text.length : spaceAt;
+
+    const wBefore  = ctx.measureText(text.slice(0, pos)).width;
+    const wAfter   = ctx.measureText(text.slice(0, wordEnd)).width;
+    const wordW    = wAfter - wBefore;
+    const wordArc  = wordW / r;
+
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(a + ca / 2);
+    ctx.rotate(a + wordArc / 2);
     ctx.translate(0, -r);
-    ctx.fillText(text[i], 0, 0);
+    ctx.fillText(text.slice(pos, wordEnd), 0, 0);
     ctx.restore();
-    a    += ca;
-    prevW = nextW;
+
+    a  += wordArc;
+    pos = wordEnd;
+
+    if (pos < text.length && text[pos] === ' ') {
+      const spaceW = ctx.measureText(text.slice(0, pos + 1)).width - wAfter;
+      a  += spaceW / r;
+      pos++;
+    }
   }
   ctx.restore();
 }
@@ -341,7 +358,7 @@ function arcText(ctx, text, cx, cy, midR, c, fs, placeholderLabel) {
   const n     = lines.length;
 
   for (let i = 0; i < n; i++) {
-    const offset = (i - (n - 1) / 2) * lineH;
+    const offset = ((n - 1) / 2 - i) * lineH; // line 0 at outer (higher) radius
     const r      = midR + offset;
     if (r < SEED_R + 4) continue; // don't overlap the center circle
     drawArcLine(ctx, lines[i], cx, cy, r, c.ink, fs);
